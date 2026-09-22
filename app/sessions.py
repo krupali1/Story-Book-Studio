@@ -14,7 +14,7 @@ ID_RE = re.compile(r"^[a-f0-9]{12}$")
 def _p(sid: str):
     if not ID_RE.match(sid or ""):
         raise ValueError("invalid session id")
-    return config.SESSIONS_DIR / f"{sid}.json"
+    return config.sessions_dir() / f"{sid}.json"
 
 
 def create(title: str = "New book") -> dict:
@@ -39,7 +39,7 @@ def save(s: dict) -> None:
 
 def list_all() -> list[dict]:
     out = []
-    for p in config.SESSIONS_DIR.glob("*.json"):
+    for p in config.sessions_dir().glob("*.json"):
         try:
             s = json.loads(p.read_text())
             out.append({"id": s["id"], "title": s["title"], "updated": s["updated"], "n": len(s.get("messages", []))})

@@ -2,12 +2,14 @@ import io
 import json
 import zipfile
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from app import agent, config, images, library, registry, sessions
 from app.main import app
+from app.providers import base
 from app.providers.base import ProviderError
 
 
@@ -94,19 +96,92 @@ def test_settings_roundtrip_and_validation(client, monkeypatch):
     assert "sk-test-value" not in json.dumps(ok) and "g-test-value" not in json.dumps(ok)
 
 
-def test_auth_flow(client, monkeypatch):
-    monkeypatch.setattr(config, "STUDIO_PASSWORD", "hunter2")
-    assert client.get("/api/me").json() == {"auth_required": True, "authed": False}
-    assert client.get("/api/sessions").status_code == 401
-    assert client.get("/api/images/img_00000000").status_code == 401
-    assert client.get("/health").status_code == 200 and client.get("/").status_code == 200
-    async def nosleep(_):
-        return None
-    monkeypatch.setattr("app.main.asyncio.sleep", nosleep)  # skip the 1s brute-force brake
-    assert client.post("/api/login", json={"password": "wrong"}).status_code == 401
-    assert client.post("/api/login", json={"password": "hunter2"}).status_code == 200
-    assert client.get("/api/me").json()["authed"] is True
+def test_no_google_configured_is_the_zero_config_demo(client):
+    """Default test setup: no GOOGLE_CLIENT_ID/SECRET, so there's one implicit
+    local user and no login wall — same as before this feature existed."""
+    assert client.get("/api/me").json() == {"auth_required": False, "authed": True, "user": None}
     assert client.get("/api/sessions").status_code == 200
+    assert client.get("/auth/google/login").status_code == 404
+
+
+def _mock_google(sub, name, email):
+    def handler(req):
+        if "oauth2.googleapis.com/token" in str(req.url):
+            return httpx.Response(200, json={"access_token": f"tok-{sub}"})
+        return httpx.Response(200, json={"sub": sub, "email": email, "name": name, "picture": ""})
+    base.TRANSPORT = httpx.MockTransport(handler)
+
+
+def _login_as(client, sub, name, email):
+    _mock_google(sub, name, email)
+    r = client.get("/auth/google/login", follow_redirects=False)
+    state = r.cookies.get("studio_oauth_state")
+    cb = client.get("/auth/google/callback", params={"code": "c", "state": state}, follow_redirects=False)
+    assert cb.status_code in (302, 307) and cb.headers["location"] == "/"
+    return cb
+
+
+def test_google_auth_flow(client, monkeypatch):
+    monkeypatch.setattr(config, "GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr(config, "GOOGLE_CLIENT_SECRET", "test-client-secret")
+    assert client.get("/api/me").json() == {"auth_required": True, "authed": False, "user": None}
+    assert client.get("/api/sessions").status_code == 401
+    assert client.get("/health").status_code == 200 and client.get("/").status_code == 200
+
+    r = client.get("/auth/google/login", follow_redirects=False)
+    assert r.status_code in (302, 307) and "accounts.google.com" in r.headers["location"]
+    assert r.cookies.get("studio_oauth_state")
+
+    # wrong state is rejected
+    bad = client.get("/auth/google/callback", params={"code": "c", "state": "not-it"}, follow_redirects=False)
+    assert bad.headers["location"] == "/?auth_error=state_mismatch"
+
+    _login_as(client, "111", "Reader", "reader@example.com")
+    me = client.get("/api/me").json()
+    assert me == {"auth_required": True, "authed": True,
+                  "user": {"name": "Reader", "email": "reader@example.com", "picture": ""}}
+    assert client.get("/api/sessions").status_code == 200
+
+    client.post("/auth/logout")
+    assert client.get("/api/me").json()["authed"] is False
+    assert client.get("/api/sessions").status_code == 401
+
+
+def test_per_user_isolation_and_sharing(client, monkeypatch):
+    monkeypatch.setattr(config, "GOOGLE_CLIENT_ID", "test-client-id")
+    monkeypatch.setattr(config, "GOOGLE_CLIENT_SECRET", "test-client-secret")
+
+    _login_as(client, "111", "Alice", "alice@example.com")
+    s = client.post("/api/sessions").json()
+    client.post(f"/api/sessions/{s['id']}/chat", json={"text": "A fox who fears the dark, age 4"})
+    lib = client.get("/api/library").json()
+    palette = next(a for a in lib if a["type"] == "palette")
+    assert client.put(f"/api/library/palette/{palette['slug']}/share", json={"shared": True}).status_code == 200
+
+    _login_as(client, "222", "Bob", "bob@example.com")
+    # Bob is a brand-new user — Alice's library is invisible to him directly...
+    assert client.get("/api/library").json() == []
+    # ...but her one shared palette shows up in the community gallery, with no email leaked.
+    shared = client.get("/api/community").json()
+    assert len(shared) == 1
+    assert shared[0]["name"] == palette["name"] and shared[0]["owner"] == {"id": "google_111", "name": "Alice", "picture": ""}
+    detail = client.get(f"/api/community/google_111/palette/{palette['slug']}").json()
+    assert detail["slug"] == palette["slug"]
+    assert client.get("/api/community/google_111/palette/not-a-real-slug").status_code == 404
+    assert client.get("/api/community/google_222/palette/" + palette["slug"]).status_code == 404  # wrong owner
+    # the shared asset's own image is fetchable by anyone (route order matters here:
+    # /images/{id} must not be shadowed by the /{type}/{slug} route above it)
+    img_id = palette["image_ids"][0]
+    img_resp = client.get(f"/api/community/google_111/images/{img_id}")
+    assert img_resp.status_code == 200 and img_resp.headers["content-type"] == "image/png"
+    assert client.get(f"/api/community/google_222/images/{img_id}").status_code == 404  # wrong owner
+    assert client.get("/api/community/google_111/images/img_00000000").status_code == 404  # not referenced by any shared asset
+
+    # Alice can un-share it and it disappears from the gallery
+    _login_as(client, "111", "Alice", "alice@example.com")
+    client.put(f"/api/library/palette/{palette['slug']}/share", json={"shared": False})
+    _login_as(client, "222", "Bob", "bob@example.com")
+    assert client.get("/api/community").json() == []
 
 
 def test_upload_and_reference_flow(client):

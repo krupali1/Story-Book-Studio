@@ -2,59 +2,108 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import hmac
 import io
 import json
 import re
+import urllib.parse
 import zipfile
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from . import agent, config, images, library, registry, sessions
+from . import agent, auth, community, config, images, library, registry, sessions, users
 
-config.ensure_dirs()
 app = FastAPI(title="Storybook Studio")
 STATIC = Path(__file__).resolve().parent.parent / "static"
-COOKIE = "studio_auth"
 
 
 # ---------------------------------------------------------------- auth ----
-def _token() -> str:
-    return hmac.new(config.STUDIO_PASSWORD.encode(), b"storybook-studio-v1", hashlib.sha256).hexdigest()
-
-
-def require_auth(request: Request) -> None:
-    if config.STUDIO_PASSWORD and not hmac.compare_digest(request.cookies.get(COOKIE, ""), _token()):
+# Google sign-in gates access when configured (GOOGLE_CLIENT_ID/SECRET set);
+# otherwise the app falls back to one implicit "local" user with no login
+# wall, same zero-config demo experience as before. Every user's data lives
+# in its own directory (see config.py) — require_auth is what tells every
+# other route which directory that is for this request.
+#
+# Must stay `async def`, not plain `def`: FastAPI runs sync dependencies in a
+# threadpool, and a contextvar .set() made inside that offloaded call doesn't
+# propagate back to the request's own task — the rest of the request (and
+# the route body) would see no current user at all.
+async def require_auth(request: Request) -> str:
+    if not config.google_configured():
+        config.set_current_user(config.LOCAL_USER_ID)
+        config.ensure_dirs()
+        return config.LOCAL_USER_ID
+    uid = auth.verify_cookie(request.cookies.get(auth.COOKIE, ""))
+    if not uid or not users.get(uid):
         raise HTTPException(401, "Sign in required")
+    config.set_current_user(uid)
+    config.ensure_dirs()
+    return uid
 
 
-class LoginIn(BaseModel):
-    password: str
+def _is_https(request: Request) -> bool:
+    return request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
 
 
-@app.post("/api/login")
-async def login(body: LoginIn, request: Request, response: Response):
-    if not config.STUDIO_PASSWORD:
-        return {"ok": True}
-    if not hmac.compare_digest(body.password.encode(), config.STUDIO_PASSWORD.encode()):
-        await asyncio.sleep(1.0)  # cheap brute-force brake
-        raise HTTPException(401, "Wrong password")
-    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
-    response.set_cookie(COOKIE, _token(), httponly=True, samesite="lax", secure=secure, max_age=60 * 60 * 24 * 90)
+def _google_redirect_uri(request: Request) -> str:
+    if config.GOOGLE_REDIRECT_URI:
+        return config.GOOGLE_REDIRECT_URI
+    scheme = "https" if _is_https(request) else request.url.scheme
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    return f"{scheme}://{host}/auth/google/callback"
+
+
+@app.get("/auth/google/login")
+async def google_login(request: Request):
+    if not config.google_configured():
+        raise HTTPException(404, "Google sign-in isn't configured on this server")
+    state = auth.new_state()
+    resp = RedirectResponse(auth.authorize_url(state, _google_redirect_uri(request)))
+    resp.set_cookie(auth.STATE_COOKIE, state, httponly=True, samesite="lax", secure=_is_https(request), max_age=600)
+    return resp
+
+
+@app.get("/auth/google/callback")
+async def google_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    if error or not code:
+        return RedirectResponse("/?auth_error=" + urllib.parse.quote(error or "missing_code"))
+    expected = request.cookies.get(auth.STATE_COOKIE, "")
+    if not state or not expected or not hmac.compare_digest(state, expected):
+        return RedirectResponse("/?auth_error=state_mismatch")
+    try:
+        tokens = await auth.exchange_code(code, _google_redirect_uri(request))
+        info = await auth.fetch_userinfo(tokens["access_token"])
+        rec = users.upsert_from_google(info)
+    except Exception:
+        return RedirectResponse("/?auth_error=google_failed")
+    resp = RedirectResponse("/")
+    resp.delete_cookie(auth.STATE_COOKIE)
+    resp.set_cookie(auth.COOKIE, auth.make_cookie(rec["id"]), httponly=True, samesite="lax",
+                    secure=_is_https(request), max_age=auth.MAX_AGE)
+    return resp
+
+
+@app.post("/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie(auth.COOKIE)
     return {"ok": True}
 
 
 @app.get("/api/me")
 async def me(request: Request):
-    required = bool(config.STUDIO_PASSWORD)
-    authed = (not required) or hmac.compare_digest(request.cookies.get(COOKIE, ""), _token())
-    return {"auth_required": required, "authed": authed}
+    if not config.google_configured():
+        return {"auth_required": False, "authed": True, "user": None}
+    uid = auth.verify_cookie(request.cookies.get(auth.COOKIE, ""))
+    rec = users.get(uid) if uid else None
+    if not rec:
+        return {"auth_required": True, "authed": False, "user": None}
+    return {"auth_required": True, "authed": True,
+            "user": {"name": rec.get("name"), "email": rec.get("email"), "picture": rec.get("picture")}}
 
 
 @app.get("/health")
@@ -216,6 +265,50 @@ async def delete_asset(type: str, slug: str):
     if type not in library.TYPES or not library.delete_asset(type, slug):
         raise HTTPException(404, "Not found")
     return {"ok": True}
+
+
+class ShareIn(BaseModel):
+    shared: bool
+
+
+@app.put("/api/library/{type}/{slug}/share", dependencies=[Depends(require_auth)])
+async def share_asset(type: str, slug: str, body: ShareIn):
+    if type not in library.TYPES:
+        raise HTTPException(400, "bad type")
+    a = library.set_shared(type, slug, body.shared)
+    if not a:
+        raise HTTPException(404, "Not found")
+    return a
+
+
+# ------------------------------------------------------------ community ----
+# Everyone's own library stays private by default; an asset only shows up
+# here once its owner explicitly flips `shared`. Read-only for everyone but
+# the owner — see app/community.py for how it scopes exposure to just the
+# shared assets (and only the images those specific assets reference), never
+# an owner's whole private library.
+@app.get("/api/community", dependencies=[Depends(require_auth)])
+async def get_community():
+    return community.list_shared()
+
+
+# Must stay ABOVE /api/community/{owner_id}/{type}/{slug}: both match a
+# 3-segment path, and FastAPI/Starlette take the first route that matches,
+# so the more specific "images" path has to come first or it's shadowed.
+@app.get("/api/community/{owner_id}/images/{image_id}", dependencies=[Depends(require_auth)])
+async def get_community_image(owner_id: str, image_id: str):
+    p = community.shared_image_path(owner_id, image_id) if images.valid_id(image_id) else None
+    if not p:
+        raise HTTPException(404, "Image not found")
+    return FileResponse(p, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@app.get("/api/community/{owner_id}/{type}/{slug}", dependencies=[Depends(require_auth)])
+async def get_community_asset(owner_id: str, type: str, slug: str):
+    a = community.get_shared(owner_id, type, slug)
+    if not a:
+        raise HTTPException(404, "Not found")
+    return a
 
 
 @app.get("/api/books/{slug}/export", dependencies=[Depends(require_auth)])

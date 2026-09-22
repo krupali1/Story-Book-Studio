@@ -23,7 +23,7 @@ def valid_id(image_id: str) -> bool:
 def _png_path(image_id: str) -> Path:
     if not valid_id(image_id):
         raise ValueError(f"invalid image id: {image_id!r}")
-    return config.IMAGES_DIR / f"{image_id}.png"
+    return config.images_dir() / f"{image_id}.png"
 
 
 def save(data: bytes, meta: dict | None = None) -> str:
@@ -36,7 +36,7 @@ def save(data: bytes, meta: dict | None = None) -> str:
     im.save(_png_path(image_id), "PNG")
     record = dict(meta or {})
     record.update(id=image_id, width=im.width, height=im.height, created=time.strftime("%Y-%m-%dT%H:%M:%S"))
-    (config.IMAGES_DIR / f"{image_id}.json").write_text(json.dumps(record))
+    (config.images_dir() / f"{image_id}.json").write_text(json.dumps(record))
     return image_id
 
 
@@ -54,7 +54,7 @@ def read(image_id: str) -> bytes:
 
 def meta(image_id: str) -> dict:
     try:
-        return json.loads((config.IMAGES_DIR / f"{image_id}.json").read_text()) if valid_id(image_id) else {}
+        return json.loads((config.images_dir() / f"{image_id}.json").read_text()) if valid_id(image_id) else {}
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 

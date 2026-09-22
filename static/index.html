@@ -37,6 +37,29 @@ button,input,select,textarea{font:inherit;color:inherit}
 .icon-btn{display:none;background:transparent;border:2px solid rgba(255,255,255,.35);color:#fff;border-radius:var(--r);padding:5px 10px;cursor:pointer}
 .demo{grid-column:1/-1;background:var(--sun);color:var(--ink);padding:8px 18px;font-weight:500;font-size:14px}
 
+/* ---- user chip ---- */
+.user{position:relative}
+.user-btn{display:flex;align-items:center;gap:8px;background:transparent;border:2px solid rgba(255,255,255,.35);border-radius:99px;padding:3px 12px 3px 3px;color:#fff;cursor:pointer;font-size:14px}
+.user-btn:hover{border-color:var(--sun)}
+.user-btn img{width:26px;height:26px;border-radius:50%;background:var(--sun)}
+.user-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:var(--r);box-shadow:4px 4px 0 var(--ink);min-width:200px;z-index:20;overflow:hidden}
+.user-menu.open{display:block}
+.user-menu .who{padding:10px 12px;border-bottom:1px solid var(--line)}
+.user-menu .who b{display:block}
+.user-menu .who span{font-size:12.5px;color:var(--ink-soft)}
+.user-menu button{width:100%;text-align:left;background:none;border:0;padding:9px 12px;cursor:pointer;font-weight:600}
+.user-menu button:hover{background:var(--paper)}
+.google-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border:2px solid var(--ink);background:#fff;border-radius:var(--r);padding:10px 16px;font-weight:600;text-decoration:none;color:var(--ink)}
+.google-btn:hover{background:var(--paper)}
+.google-btn svg{width:18px;height:18px}
+
+/* ---- community gallery ---- */
+.cm-owner{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.cm-owner img{width:18px;height:18px;border-radius:50%;background:var(--sun)}
+.share-row{display:flex;align-items:center;gap:8px}
+.share-row .tog{display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;font-weight:600}
+.share-row .on{color:var(--meadow)}
+
 /* ---- rail ---- */
 #rail{background:var(--white);border-right:2px solid var(--ink);display:flex;flex-direction:column;min-height:0;grid-row:3}
 #rail .head{padding:14px}
@@ -199,6 +222,13 @@ dialog::backdrop{background:rgba(27,33,80,.55)}
     </h1>
     <div class="spacer"></div>
     <button class="providers" id="btnProviders" title="Choose AI providers"></button>
+    <div class="user" id="userChip" hidden>
+      <button class="user-btn" id="userBtn"><img id="userAvatar" alt=""><span class="short" id="userName"></span></button>
+      <div class="user-menu" id="userMenu">
+        <div class="who"><b id="userMenuName"></b><span id="userMenuEmail"></span></div>
+        <button type="button" id="btnLogout">Sign out</button>
+      </div>
+    </div>
     <button class="icon-btn" id="btnPanel" aria-label="Show library">Library</button>
   </header>
   <div class="demo" id="demoBar" hidden>Demo mode: no AI provider key was found on the server, so replies are scripted and images are placeholders. Add a key (see README), then pick it in Providers.</div>
@@ -228,12 +258,17 @@ dialog::backdrop{background:rgba(27,33,80,.55)}
   <aside id="panel" aria-label="Library">
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-tab="library">Library</button>
+      <button role="tab" aria-selected="false" data-tab="community">Community</button>
       <button role="tab" aria-selected="false" data-tab="taste">Taste</button>
       <button role="tab" aria-selected="false" data-tab="feedback">Feedback</button>
     </div>
     <div class="pane" id="pane-library">
       <div class="filters" id="filters"></div>
       <div id="libList"></div>
+    </div>
+    <div class="pane" id="pane-community" hidden>
+      <p class="muted">Characters, styles, palettes and books other people have chosen to share. Share your own from its detail view in Library.</p>
+      <div id="cmList"></div>
     </div>
     <div class="pane" id="pane-taste" hidden>
       <p class="muted">What the studio has learned about your taste. The agent reads this at the start of every session and rewrites it after each book. Edit it freely.</p>
@@ -254,13 +289,15 @@ dialog::backdrop{background:rgba(27,33,80,.55)}
 
 <dialog id="dlgAsset"><div class="dlg" id="assetBody"></div></dialog>
 
-<dialog id="dlgLogin"><form class="dlg" id="loginForm">
+<dialog id="dlgLogin"><div class="dlg">
   <h2>Sign in</h2>
-  <p class="sub">This studio is password protected.</p>
-  <input type="password" id="pw" placeholder="Password" autocomplete="current-password" aria-label="Password">
-  <p class="muted" id="loginErr" style="color:#9c1f3c"></p>
-  <div class="foot"><button class="btn primary" type="submit">Sign in</button></div>
-</form></dialog>
+  <p class="sub">Your library is private to your account.</p>
+  <a class="google-btn" href="/auth/google/login">
+    <svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+    Continue with Google
+  </a>
+  <p class="muted" id="loginErr" style="color:#9c1f3c;margin-top:10px"></p>
+</div></dialog>
 
 <div id="toast" hidden></div>
 
@@ -269,7 +306,7 @@ dialog::backdrop{background:rgba(27,33,80,.55)}
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state = { sessions: [], current: null, settings: null, pending: [], busy: false, filter: 'all', library: [], tasteMax: 6000 };
+const state = { sessions: [], current: null, settings: null, pending: [], busy: false, filter: 'all', library: [], community: [], tasteMax: 6000 };
 
 /* ---------- tiny markdown ---------- */
 function md(src) {
@@ -313,20 +350,31 @@ function toast(msg, err = false) {
 }
 
 /* ---------- boot / auth ---------- */
-function showLogin() { const d = $('#dlgLogin'); if (!d.open) d.showModal(); setTimeout(() => $('#pw').focus(), 30); }
+function showLogin() {
+  const d = $('#dlgLogin'); if (!d.open) d.showModal();
+  const err = new URLSearchParams(location.search).get('auth_error');
+  if (err) { $('#loginErr').textContent = 'Sign-in failed (' + err + '). Try again.'; history.replaceState(null, '', location.pathname); }
+}
 $('#dlgLogin').addEventListener('cancel', e => e.preventDefault());
-$('#loginForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  try {
-    await api('/api/login', { method: 'POST', body: JSON.stringify({ password: $('#pw').value }) });
-    $('#dlgLogin').close(); $('#pw').value = ''; $('#loginErr').textContent = ''; boot();
-  } catch (err) { $('#loginErr').textContent = err.message; }
-});
+
+function renderUserChip(user) {
+  const chip = $('#userChip');
+  if (!user) { chip.hidden = true; return; }
+  chip.hidden = false;
+  $('#userAvatar').src = user.picture || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26"%3E%3Ccircle cx="13" cy="13" r="13" fill="%23ffc83d"/%3E%3C/svg%3E';
+  $('#userName').textContent = user.name || user.email || 'Account';
+  $('#userMenuName').textContent = user.name || 'Account';
+  $('#userMenuEmail').textContent = user.email || '';
+}
+$('#userBtn').addEventListener('click', () => $('#userMenu').classList.toggle('open'));
+document.addEventListener('click', e => { if (!e.target.closest('#userChip')) $('#userMenu').classList.remove('open'); });
+$('#btnLogout').addEventListener('click', async () => { await api('/auth/logout', { method: 'POST' }); location.reload(); });
 
 async function boot() {
   const me = await (await fetch('/api/me')).json();
   if (me.auth_required && !me.authed) return showLogin();
-  await Promise.all([loadSettings(), loadSessions(), loadLibrary(), loadTaste(), loadFeedback()]);
+  renderUserChip(me.user);
+  await Promise.all([loadSettings(), loadSessions(), loadLibrary(), loadCommunity(), loadTaste(), loadFeedback()]);
   if (state.sessions[0]) openSession(state.sessions[0].id); else newSession();
 }
 
@@ -573,7 +621,7 @@ $('#composer').addEventListener('submit', async e => {
 /* ---------- side panel ---------- */
 $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   $$('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
-  ['library', 'taste', 'feedback'].forEach(t => { $('#pane-' + t).hidden = t !== b.dataset.tab; });
+  ['library', 'community', 'taste', 'feedback'].forEach(t => { $('#pane-' + t).hidden = t !== b.dataset.tab; });
 }));
 const TYPE_LABEL = { character: 'Characters', style: 'Styles', palette: 'Palettes', book: 'Books' };
 async function loadLibrary() { state.library = await api('/api/library'); renderLibrary(); }
@@ -593,7 +641,8 @@ $('#libList').addEventListener('click', async e => {
     ${a.tags.length ? `<div class="chips">${a.tags.map(t => `<span class="chip" style="cursor:default">${esc(t)}</span>`).join('')}</div>` : ''}
     ${a.image_ids.length ? `<div class="detail-imgs">${a.image_ids.map(i => `<a href="/api/images/${i}" target="_blank" rel="noopener"><img src="/api/images/${i}" alt="${i}"></a>`).join('')}</div>` : ''}
     <pre>${esc(JSON.stringify(a.data, null, 2))}</pre>
-    <div class="foot"><button type="button" class="btn danger" id="aDel">Delete</button>
+    <div class="foot share-row"><label class="tog"><input type="checkbox" id="aShare" ${a.shared ? 'checked' : ''}> <span class="${a.shared ? 'on' : ''}" id="aShareLbl">${a.shared ? 'Shared to Community' : 'Share to Community'}</span></label>
+      <span class="spacer"></span><button type="button" class="btn danger" id="aDel">Delete</button>
       ${a.type === 'book' ? `<a class="btn" style="text-decoration:none" href="/api/books/${a.slug}/export">Export ZIP</a>` : ''}
       <button type="button" class="btn" id="aReuse">Reuse in chat</button><button type="button" class="btn primary" id="aClose">Close</button></div>`;
   const dlg = $('#dlgAsset'); dlg.showModal();
@@ -603,6 +652,37 @@ $('#libList').addEventListener('click', async e => {
     input.value = `${verb} "${a.name}" for a new story: `; autosize(); dlg.close(); closeDrawers(); input.focus();
   };
   $('#aDel').onclick = async () => { if (!confirm(`Delete "${a.name}" from the library?`)) return; await api(`/api/library/${a.type}/${a.slug}`, { method: 'DELETE' }); dlg.close(); loadLibrary(); toast('Deleted'); };
+  $('#aShare').onchange = async e2 => {
+    try {
+      await api(`/api/library/${a.type}/${a.slug}/share`, { method: 'PUT', body: JSON.stringify({ shared: e2.target.checked }) });
+      $('#aShareLbl').textContent = e2.target.checked ? 'Shared to Community' : 'Share to Community';
+      $('#aShareLbl').classList.toggle('on', e2.target.checked);
+      toast(e2.target.checked ? 'Shared — visible in everyone\'s Community tab' : 'Unshared');
+      loadCommunity();
+    } catch (err) { toast(err.message, true); e2.target.checked = !e2.target.checked; }
+  };
+});
+
+/* ---------- community ---------- */
+async function loadCommunity() { state.community = await api('/api/community'); renderCommunity(); }
+function renderCommunity() {
+  const items = state.community || [];
+  $('#cmList').innerHTML = items.map(a => `<button type="button" class="item" data-owner="${a.owner.id}" data-type="${a.type}" data-slug="${a.slug}">
+      ${a.image_ids[0] ? `<img class="th" loading="lazy" src="/api/community/${a.owner.id}/images/${a.image_ids[0]}" alt="">` : `<div class="th none">${esc(a.name[0] || '?')}</div>`}
+      <div><div class="ty">${a.type}</div><div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.description)}</div>
+      <div class="cm-owner"><img src="${a.owner.picture || ''}" alt="" onerror="this.style.visibility='hidden'"><span>${esc(a.owner.name)}</span></div></div></button>`).join('')
+    || '<p class="muted">No one has shared anything yet. Share one of your own from its detail view in Library.</p>';
+}
+$('#cmList').addEventListener('click', async e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  const a = await api(`/api/community/${it.dataset.owner}/${it.dataset.type}/${it.dataset.slug}`);
+  $('#assetBody').innerHTML = `<h2>${esc(a.name)}</h2><p class="sub">${esc(a.type)}, shared by ${esc(a.owner.name)}. ${esc(a.description)}</p>
+    ${a.tags.length ? `<div class="chips">${a.tags.map(t => `<span class="chip" style="cursor:default">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${a.image_ids.length ? `<div class="detail-imgs">${a.image_ids.map(i => `<img src="/api/community/${a.owner.id}/images/${i}" alt="${i}">`).join('')}</div>` : ''}
+    <pre>${esc(JSON.stringify(a.data, null, 2))}</pre>
+    <div class="foot"><button type="button" class="btn primary" id="aClose">Close</button></div>`;
+  const dlg = $('#dlgAsset'); dlg.showModal();
+  $('#aClose').onclick = () => dlg.close();
 });
 async function loadTaste() {
   const t = await api('/api/taste'); const ta = $('#tasteText');

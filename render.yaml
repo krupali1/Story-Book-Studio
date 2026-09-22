@@ -12,7 +12,13 @@ services:
     envVars:
       - key: DATA_DIR
         value: /data
-      - key: STUDIO_PASSWORD
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI  # https://<your-service>.onrender.com/auth/google/callback
+        sync: false
+      - key: SESSION_SECRET
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false

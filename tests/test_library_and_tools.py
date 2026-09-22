@@ -36,7 +36,7 @@ def test_taste_limits_and_history():
     library.set_taste("# Taste\n- likes soft gouache")
     library.set_taste("# Taste\n- likes paper cut")
     assert "paper cut" in library.get_taste()
-    hist = list((library.config.DATA_DIR / "taste_history").glob("*.md"))
+    hist = list((library.config.data_dir() / "taste_history").glob("*.md"))
     assert len(hist) == 1 and "gouache" in hist[0].read_text()
     with pytest.raises(ValueError):
         library.set_taste("x" * (library.TASTE_MAX + 1))

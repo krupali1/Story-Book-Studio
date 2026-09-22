@@ -32,7 +32,7 @@ def _now() -> str:
 def _dir(type_: str) -> Path:
     if type_ not in TYPES:
         raise ValueError(f"type must be one of {', '.join(TYPES)}")
-    return config.LIBRARY_DIR / f"{type_}s"
+    return config.library_dir() / f"{type_}s"
 
 
 def save_asset(type_: str, name: str, description: str = "", tags: list[str] | None = None,
@@ -46,11 +46,25 @@ def save_asset(type_: str, name: str, description: str = "", tags: list[str] | N
         asset = {
             "type": type_, "slug": slug, "name": name.strip() or slug, "description": description or "",
             "tags": sorted({t.strip().lower() for t in (tags or []) if t and t.strip()}),
-            "data": data or {}, "image_ids": image_ids or [],
+            "data": data or {}, "image_ids": image_ids or [], "shared": (old or {}).get("shared", False),
             "created": old["created"] if old else _now(), "updated": _now(),
             "version": (old["version"] + 1) if old else 1,
         }
         p.write_text(json.dumps(asset, indent=2, ensure_ascii=False))
+        _reindex()
+        return asset
+
+
+def set_shared(type_: str, slug: str, shared: bool) -> dict | None:
+    """Toggle whether an asset is visible in the cross-user Community gallery —
+    a pure visibility flip, not a content edit, so it doesn't bump `version`."""
+    with _lock:
+        asset = get_asset(type_, slug)
+        if not asset:
+            return None
+        asset["shared"] = bool(shared)
+        asset["updated"] = _now()
+        (_dir(type_) / slugify(slug) / "asset.json").write_text(json.dumps(asset, indent=2, ensure_ascii=False))
         _reindex()
         return asset
 
@@ -89,9 +103,11 @@ def list_assets(type_: str | None = None) -> list[dict]:
 
 
 def _reindex() -> None:
-    idx = [{k: a[k] for k in ("type", "slug", "name", "description", "tags", "image_ids", "updated")}
-           for a in list_assets()]
-    (config.LIBRARY_DIR / "index.json").write_text(json.dumps(idx, indent=2, ensure_ascii=False))
+    # a.get("shared", False): older asset.json files predate the field.
+    idx = [{"type": a["type"], "slug": a["slug"], "name": a["name"], "description": a["description"],
+            "tags": a["tags"], "image_ids": a["image_ids"], "shared": a.get("shared", False),
+            "updated": a["updated"]} for a in list_assets()]
+    (config.library_dir() / "index.json").write_text(json.dumps(idx, indent=2, ensure_ascii=False))
 
 
 def search(query: str, type_: str | None = None, limit: int = 8) -> list[dict]:
@@ -123,7 +139,7 @@ def digest(per_type: int = 12) -> str:
 # ---- taste profile -------------------------------------------------------
 
 def _taste_path() -> Path:
-    return config.DATA_DIR / "taste.md"
+    return config.data_dir() / "taste.md"
 
 
 def get_taste() -> str:
@@ -143,7 +159,7 @@ def set_taste(text: str) -> None:
         config.ensure_dirs()
         p = _taste_path()
         if p.exists():
-            hist = config.DATA_DIR / "taste_history"
+            hist = config.data_dir() / "taste_history"
             hist.mkdir(exist_ok=True)
             (hist / f"{time.strftime('%Y%m%d-%H%M%S')}.md").write_text(p.read_text())
         p.write_text(text + "\n")
@@ -152,7 +168,7 @@ def set_taste(text: str) -> None:
 # ---- feedback log --------------------------------------------------------
 
 def _fb_path() -> Path:
-    return config.DATA_DIR / "feedback.jsonl"
+    return config.data_dir() / "feedback.jsonl"
 
 
 def log_feedback(entry: dict) -> dict:
