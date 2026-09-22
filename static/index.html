@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Storybook Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231b2150'/%3E%3Cpath d='M14 18h16a6 6 0 0 1 6 6v24a5 5 0 0 0-5-5H14zM50 18H34a6 6 0 0 0-6 6v24a5 5 0 0 1 5-5h17z' fill='%23ffc83d'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1b2150; --ink-soft:#4b5279; --paper:#eceff5; --white:#fff;
+  --sun:#ffc83d; --sun-deep:#e7a900; --meadow:#2f9e6f; --poppy:#e8476a; --sky:#a9d4f5; --sky-deep:#2c6fb0;
+  --line:#c9cfe0;
+  --display:'Bricolage Grotesque','Trebuchet MS',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --r:8px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--body);color:var(--ink);background:var(--paper);font-size:16px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--sky-deep);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* ---- shell ---- */
+#app{height:100%;display:grid;grid-template-columns:250px minmax(0,1fr) 340px;grid-template-rows:auto auto minmax(0,1fr)}
+.top{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--ink);color:var(--white)}
+.brand{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.01em;margin:0;display:flex;align-items:center;gap:10px}
+.brand svg{width:26px;height:26px}
+.spacer{flex:1}
+.providers{display:flex;gap:6px;align-items:center;background:transparent;border:2px solid rgba(255,255,255,.35);border-radius:var(--r);padding:5px 10px;color:var(--white);cursor:pointer;font-size:14px}
+.providers:hover{border-color:var(--sun)}
+.providers b{font-weight:600;color:var(--sun)}
+.providers>span+span{margin-left:8px}
+.icon-btn{display:none;background:transparent;border:2px solid rgba(255,255,255,.35);color:#fff;border-radius:var(--r);padding:5px 10px;cursor:pointer}
+.demo{grid-column:1/-1;background:var(--sun);color:var(--ink);padding:8px 18px;font-weight:500;font-size:14px}
+
+/* ---- rail ---- */
+#rail{background:var(--white);border-right:2px solid var(--ink);display:flex;flex-direction:column;min-height:0;grid-row:3}
+#rail .head{padding:14px}
+#sessions{overflow:auto;padding:0 8px 14px;flex:1}
+.session{display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:var(--r);cursor:pointer;border-left:6px solid transparent}
+.session:hover{background:var(--paper)}
+.session.active{background:var(--paper);border-left-color:var(--sun-deep);font-weight:600}
+.session .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session .x{opacity:0;background:none;border:0;cursor:pointer;color:var(--ink-soft);padding:2px 6px;border-radius:6px;font-size:13px}
+.session:hover .x,.session .x:focus-visible{opacity:1}
+.session .x:hover{color:var(--poppy)}
+@media (hover:none){.session .x{opacity:1}}
+
+/* ---- buttons ---- */
+.btn{border:2px solid var(--ink);background:var(--white);border-radius:var(--r);padding:7px 14px;font-weight:600;cursor:pointer;line-height:1.2;display:inline-block}
+.btn:hover{background:var(--paper)}
+.btn.primary{background:var(--sun);box-shadow:3px 3px 0 var(--ink)}
+.btn.primary:hover{background:#ffd45f}
+.btn.primary:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.btn.danger{color:var(--poppy);border-color:var(--poppy)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.wide{width:100%}
+
+/* ---- chat ---- */
+#chat{display:flex;flex-direction:column;min-height:0;min-width:0;grid-row:3}
+#messages{flex:1;overflow:auto;padding:26px 22px 10px}
+.lane{max-width:780px;margin:0 auto}
+.msg{margin:0 0 18px}
+.msg.user{display:flex;justify-content:flex-end}
+.msg.user .bubble{background:var(--sun);border:2px solid var(--ink);border-radius:var(--r);padding:9px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.user>div{max-width:85%}
+.msg.assistant{font-size:16.5px;line-height:1.6;max-width:70ch;overflow-wrap:anywhere}
+.msg.assistant p{margin:0 0 .7em}
+.msg.assistant h2,.msg.assistant h3,.msg.assistant h4{font-family:var(--display);margin:1em 0 .3em;line-height:1.2}
+.msg.assistant h2{font-size:22px}.msg.assistant h3{font-size:19px}.msg.assistant h4{font-size:17px}
+.msg.assistant ul,.msg.assistant ol{margin:.2em 0 .8em;padding-left:1.3em}
+.msg.assistant code{background:#e0e5f0;padding:1px 5px;border-radius:4px;font-size:.9em}
+.msg.assistant pre{background:var(--ink);color:#eaf0ff;padding:12px;border-radius:var(--r);overflow:auto}
+.msg.assistant pre code{background:none;padding:0;color:inherit}
+.msg.error{background:#fff;border:2px solid var(--poppy);color:#9c1f3c;border-radius:var(--r);padding:10px 14px}
+.sw{display:inline-block;width:.9em;height:.9em;border-radius:3px;border:1.5px solid var(--ink);vertical-align:-.1em;margin-right:4px}
+.att{display:flex;gap:6px;margin-top:6px;justify-content:flex-end;flex-wrap:wrap}
+.att img{width:54px;height:54px;object-fit:cover;border:2px solid var(--ink);border-radius:6px;background:#fff}
+
+.steps{margin:0 0 14px;display:flex;flex-direction:column;gap:6px}
+.step{border:2px solid var(--line);background:var(--white);border-radius:var(--r);font-size:14px}
+.step summary{padding:6px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;list-style:none}
+.step summary::-webkit-details-marker{display:none}
+.step .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.step .dot{width:10px;height:10px;border-radius:50%;background:var(--meadow);flex:none}
+.step.fail{border-color:var(--poppy)}.step.fail .dot{background:var(--poppy)}
+.step.running .dot{background:var(--sun-deep);animation:pulse 1s infinite}
+.step pre{margin:0;padding:8px 10px 10px;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere;border-top:1px solid var(--line);color:var(--ink-soft)}
+@keyframes pulse{50%{opacity:.25}}
+
+/* the memorable bit: prints taped to the light table */
+.prints{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:26px 22px;margin:8px 0 22px;padding-top:10px}
+.print{position:relative;background:var(--white);border:2px solid var(--ink);box-shadow:5px 5px 0 var(--ink);padding:8px 8px 0;margin:0}
+.print:nth-child(odd){transform:rotate(-.6deg)}.print:nth-child(even){transform:rotate(.5deg)}
+.print::before{content:"";position:absolute;top:-13px;left:50%;width:64px;height:22px;transform:translateX(-50%) rotate(-3deg);background:rgba(255,200,61,.8);border:1px solid rgba(27,33,80,.15)}
+.print img{display:block;width:100%;height:auto;background:var(--paper)}
+.print figcaption{padding:7px 2px 8px;font-size:13px}
+.print .id{color:var(--ink-soft);font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.print .acts{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.print .acts button{border:2px solid var(--ink);background:#fff;border-radius:6px;padding:2px 8px;font-size:13px;font-weight:600;cursor:pointer}
+.print .acts .keep:hover{background:#d6f3e5}.print .acts .rej:hover{background:#fbdde5}.print .acts .ref:hover{background:var(--sky)}
+.fbform{padding:2px 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.chip{border:2px solid var(--ink);background:#fff;border-radius:99px;padding:1px 9px;font-size:12.5px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:#fff}
+.fbform input{width:100%;border:2px solid var(--ink);border-radius:6px;padding:4px 8px;font-size:14px;margin-bottom:6px}
+
+.working{color:var(--ink-soft);font-size:14px;display:flex;align-items:center;gap:8px;margin:0 0 16px}
+.working i{width:10px;height:10px;border-radius:50%;background:var(--sun-deep);animation:pulse 1s infinite}
+
+.empty{max-width:640px;margin:8vh auto 0}
+.empty h2{font-family:var(--display);font-weight:800;font-size:clamp(30px,5vw,46px);line-height:1.05;margin:0 0 12px;letter-spacing:-.02em}
+.empty p{color:var(--ink-soft);margin:0 0 18px;max-width:52ch}
+.starters{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.starters button{text-align:left;border:2px solid var(--ink);background:#fff;border-radius:var(--r);padding:9px 13px;cursor:pointer}
+.starters button:hover{background:var(--sun)}
+
+/* ---- composer ---- */
+#composer{border-top:2px solid var(--ink);background:var(--white);padding:12px 22px 14px}
+#composer .lane{display:flex;flex-direction:column;gap:8px}
+#pending{display:flex;gap:8px;flex-wrap:wrap}
+#pending .p{position:relative}
+#pending img{width:52px;height:52px;object-fit:cover;border:2px solid var(--ink);border-radius:6px}
+#pending button{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;border:2px solid var(--ink);background:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0}
+#input{width:100%;resize:none;border:2px solid var(--ink);border-radius:var(--r);padding:10px 12px;min-height:46px;max-height:200px;background:var(--paper)}
+.crow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.crow label.tog{display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer}
+.crow .hint{color:var(--ink-soft);font-size:13px}
+
+/* ---- panel ---- */
+#panel{background:var(--white);border-left:2px solid var(--ink);display:flex;flex-direction:column;min-height:0;grid-row:3}
+.tabs{display:flex;border-bottom:2px solid var(--ink)}
+.tabs button{flex:1;background:none;border:0;padding:11px 6px;font-weight:600;cursor:pointer;border-bottom:5px solid transparent;margin-bottom:-2px}
+.tabs button[aria-selected=true]{border-bottom-color:var(--sun-deep)}
+.tabs button:hover{background:var(--paper)}
+.pane{flex:1;overflow:auto;padding:14px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.item{display:flex;gap:10px;padding:9px;border:2px solid var(--line);border-radius:var(--r);margin-bottom:8px;cursor:pointer;background:#fff;width:100%;text-align:left}
+.item:hover{border-color:var(--ink)}
+.item .th{width:54px;height:54px;flex:none;border-radius:6px;object-fit:cover;background:var(--paper);border:2px solid var(--ink)}
+.item .th.none{display:grid;place-items:center;font-family:var(--display);font-weight:800;color:var(--ink-soft)}
+.item .nm{font-weight:600;line-height:1.25}
+.item .ds{font-size:13px;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.item .ty{font-size:12px;color:var(--sky-deep);font-weight:600}
+.muted{color:var(--ink-soft);font-size:14px}
+textarea.taste{width:100%;min-height:320px;border:2px solid var(--ink);border-radius:var(--r);padding:10px;background:var(--paper);font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.5}
+.fbrow{border-bottom:1px solid var(--line);padding:8px 0;font-size:14px}
+.fbrow b.ok{color:var(--meadow)}.fbrow b.no{color:var(--poppy)}
+
+/* ---- dialogs ---- */
+dialog{border:2px solid var(--ink);border-radius:12px;padding:0;max-width:min(680px,94vw);width:100%;box-shadow:8px 8px 0 var(--ink);color:var(--ink);background:var(--white)}
+dialog::backdrop{background:rgba(27,33,80,.55)}
+.dlg{padding:20px 22px}
+.dlg h2{font-family:var(--display);font-weight:800;margin:0 0 4px;font-size:26px}
+.dlg .sub{margin:0 0 16px;color:var(--ink-soft)}
+.role{display:grid;grid-template-columns:150px 1fr 1fr;gap:10px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.role .who b{display:block;font-family:var(--display);font-size:18px}
+.role .who span{font-size:13px;color:var(--ink-soft)}
+.role select,.role input,.dlg input[type=password]{width:100%;border:2px solid var(--ink);border-radius:6px;padding:6px 8px;background:#fff}
+.role .note{grid-column:2/-1;font-size:13px;color:var(--ink-soft)}
+.role .warn{color:#9c1f3c}
+.dlg .foot{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.dlg pre{background:var(--paper);border:2px solid var(--line);border-radius:var(--r);padding:10px;overflow:auto;max-height:280px;font-size:12.5px;white-space:pre-wrap}
+.detail-imgs{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.detail-imgs img{height:120px;border:2px solid var(--ink);border-radius:6px}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:var(--r);z-index:20;box-shadow:4px 4px 0 var(--sun)}
+#toast.err{background:var(--poppy);box-shadow:4px 4px 0 var(--ink)}
+
+/* ---- responsive ---- */
+@media (max-width:1050px){
+  #app{grid-template-columns:minmax(0,1fr)}
+  .icon-btn{display:inline-block}
+  #rail,#panel{position:fixed;top:0;bottom:0;z-index:15;width:min(340px,92vw);transform:translateX(-105%);transition:transform .18s ease}
+  #panel{right:0;left:auto;transform:translateX(105%)}
+  #rail.open,#panel.open{transform:none}
+  .role{grid-template-columns:1fr}.role .note{grid-column:1}
+}
+.providers .short{display:none;margin-left:0!important}
+@media (max-width:700px){
+  .top{padding:10px 12px;gap:8px}
+  .providers>span{display:none}.providers .short{display:inline}
+  #messages{padding:18px 14px 8px}#composer{padding:10px 14px 12px}
+}
+@media (max-width:520px){.brand .name{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <button class="icon-btn" id="btnRail" aria-label="Show books">Books</button>
+    <h1 class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#ffc83d"/><path d="M14 18h16a6 6 0 0 1 6 6v24a5 5 0 0 0-5-5H14zM50 18H34a6 6 0 0 0-6 6v24a5 5 0 0 1 5-5h17z" fill="#1b2150"/></svg>
+      <span class="name">Storybook Studio</span>
+    </h1>
+    <div class="spacer"></div>
+    <button class="providers" id="btnProviders" title="Choose AI providers"></button>
+    <button class="icon-btn" id="btnPanel" aria-label="Show library">Library</button>
+  </header>
+  <div class="demo" id="demoBar" hidden>Demo mode: no AI provider key was found on the server, so replies are scripted and images are placeholders. Add a key (see README), then pick it in Providers.</div>
+
+  <aside id="rail" aria-label="Books">
+    <div class="head"><button class="btn primary wide" id="btnNew">New book</button></div>
+    <div id="sessions"></div>
+  </aside>
+
+  <main id="chat">
+    <div id="messages" aria-live="polite"><div class="lane" id="lane"></div></div>
+    <form id="composer" autocomplete="off">
+      <div class="lane">
+        <div id="pending"></div>
+        <textarea id="input" rows="1" placeholder="Describe the story or react…" aria-label="Message"></textarea>
+        <div class="crow">
+          <button type="submit" class="btn primary" id="btnSend">Send</button>
+          <button type="button" class="btn" id="btnAttach">Attach image</button>
+          <input type="file" id="file" accept="image/*" multiple hidden>
+          <label class="tog"><input type="checkbox" id="explore"> Explore mode</label>
+          <span class="hint">Steps outside your usual taste</span>
+        </div>
+      </div>
+    </form>
+  </main>
+
+  <aside id="panel" aria-label="Library">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="library">Library</button>
+      <button role="tab" aria-selected="false" data-tab="taste">Taste</button>
+      <button role="tab" aria-selected="false" data-tab="feedback">Feedback</button>
+    </div>
+    <div class="pane" id="pane-library">
+      <div class="filters" id="filters"></div>
+      <div id="libList"></div>
+    </div>
+    <div class="pane" id="pane-taste" hidden>
+      <p class="muted">What the studio has learned about your taste. The agent reads this at the start of every session and rewrites it after each book. Edit it freely.</p>
+      <textarea class="taste" id="tasteText" spellcheck="false" aria-label="Taste profile"></textarea>
+      <div class="crow" style="margin-top:10px"><button class="btn primary" id="btnTaste">Save taste</button><span class="muted" id="tasteCount"></span></div>
+    </div>
+    <div class="pane" id="pane-feedback" hidden><div id="fbList"></div></div>
+  </aside>
+</div>
+
+<dialog id="dlgSettings"><div class="dlg">
+  <h2>Providers</h2>
+  <p class="sub">Choose which AI does each job. API keys live in the server's environment, never in the browser.</p>
+  <div id="roles"></div>
+  <p class="muted" id="unconf"></p>
+  <div class="foot"><button class="btn" id="setCancel">Close</button><button class="btn primary" id="setSave">Save providers</button></div>
+</div></dialog>
+
+<dialog id="dlgAsset"><div class="dlg" id="assetBody"></div></dialog>
+
+<dialog id="dlgLogin"><form class="dlg" id="loginForm">
+  <h2>Sign in</h2>
+  <p class="sub">This studio is password protected.</p>
+  <input type="password" id="pw" placeholder="Password" autocomplete="current-password" aria-label="Password">
+  <p class="muted" id="loginErr" style="color:#9c1f3c"></p>
+  <div class="foot"><button class="btn primary" type="submit">Sign in</button></div>
+</form></dialog>
+
+<div id="toast" hidden></div>
+
+<script>
+'use strict';
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const state = { sessions: [], current: null, settings: null, pending: [], busy: false, filter: 'all', library: [], tasteMax: 6000 };
+
+/* ---------- tiny markdown ---------- */
+function md(src) {
+  const blocks = [];
+  const s = esc(src).replace(/```[a-z]*\n?([\s\S]*?)```/g, (_, c) => { blocks.push(c.replace(/\n$/, '')); return `\u0000${blocks.length - 1}\u0000`; });
+  const inline = t => t
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, '$1<em>$2</em>')
+    .replace(/(^|[^\w])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>')
+    .replace(/#([0-9a-fA-F]{6})\b/g, '<span class="sw" style="background:#$1"></span>#$1');
+  const out = []; let list = null, para = [];
+  const flushP = () => { if (para.length) { out.push(`<p>${inline(para.join('<br>'))}</p>`); para = []; } };
+  const flushL = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const line of s.split('\n')) {
+    let m;
+    if ((m = line.match(/^\u0000(\d+)\u0000$/))) { flushP(); flushL(); out.push(`<pre><code>${blocks[+m[1]]}</code></pre>`); }
+    else if ((m = line.match(/^(#{1,4})\s+(.*)$/))) { flushP(); flushL(); const n = Math.min(4, Math.max(2, m[1].length + 1)); out.push(`<h${n}>${inline(m[2])}</h${n}>`); }
+    else if ((m = line.match(/^\s*[-*]\s+(.*)$/))) { flushP(); if (list !== 'ul') { flushL(); out.push('<ul>'); list = 'ul'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) { flushP(); if (list !== 'ol') { flushL(); out.push('<ol>'); list = 'ol'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if (!line.trim()) { flushP(); flushL(); }
+    else { flushL(); para.push(line); }
+  }
+  flushP(); flushL();
+  return out.join('');
+}
+
+/* ---------- api ---------- */
+async function api(path, opts = {}) {
+  const isForm = opts.body instanceof FormData;
+  const res = await fetch(path, { credentials: 'same-origin', ...opts,
+    headers: isForm ? (opts.headers || {}) : { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+  if (res.status === 401) { showLogin(); throw new Error('Sign in required'); }
+  if (!res.ok) { let m = res.statusText; try { m = (await res.json()).detail || m; } catch {} throw new Error(m); }
+  return res.json();
+}
+let toastTimer;
+function toast(msg, err = false) {
+  const t = $('#toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 4200);
+}
+
+/* ---------- boot / auth ---------- */
+function showLogin() { const d = $('#dlgLogin'); if (!d.open) d.showModal(); setTimeout(() => $('#pw').focus(), 30); }
+$('#dlgLogin').addEventListener('cancel', e => e.preventDefault());
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    await api('/api/login', { method: 'POST', body: JSON.stringify({ password: $('#pw').value }) });
+    $('#dlgLogin').close(); $('#pw').value = ''; $('#loginErr').textContent = ''; boot();
+  } catch (err) { $('#loginErr').textContent = err.message; }
+});
+
+async function boot() {
+  const me = await (await fetch('/api/me')).json();
+  if (me.auth_required && !me.authed) return showLogin();
+  await Promise.all([loadSettings(), loadSessions(), loadLibrary(), loadTaste(), loadFeedback()]);
+  if (state.sessions[0]) openSession(state.sessions[0].id); else newSession();
+}
+
+/* ---------- providers ---------- */
+async function loadSettings() { state.settings = await api('/api/settings'); renderProviderPill(); }
+function renderProviderPill() {
+  const r = state.settings.roles, L = { brain: 'Brain', critic: 'Critic', image: 'Images' };
+  $('#btnProviders').innerHTML = Object.keys(L).map(k => `<span><span class="lab">${L[k]} </span><b>${esc(r[k].provider)}</b></span>`).join('') + '<span class="short">Providers</span>';
+  $('#demoBar').hidden = !state.settings.demo_mode;
+}
+const ROLE_INFO = [
+  ['brain', 'Brain', 'Plans, writes the story, drives the tools.', 'llm'],
+  ['critic', 'Critic', 'Reviews drawings. Needs a vision model.', 'llm'],
+  ['image', 'Illustrator', 'Draws the characters and pages.', 'image'],
+];
+function openSettings() {
+  const s = state.settings, box = $('#roles'); box.innerHTML = '';
+  for (const [role, name, desc, kind] of ROLE_INFO) {
+    const cur = s.roles[role], provs = s[kind];
+    const row = document.createElement('div'); row.className = 'role'; row.dataset.role = role;
+    row.innerHTML = `<div class="who"><b>${name}</b><span>${desc}</span></div>
+      <select aria-label="${name} provider">${provs.map(p => `<option value="${p.id}" ${p.configured ? '' : 'disabled'} ${p.id === cur.provider ? 'selected' : ''}>${esc(p.label)}${p.configured ? '' : ' (no key)'}</option>`).join('')}</select>
+      <div><input list="models-${role}" aria-label="${name} model" value="${esc(cur.model)}" placeholder="model id"><datalist id="models-${role}"></datalist></div>
+      <div class="note"></div>`;
+    box.appendChild(row);
+    const sel = $('select', row), inp = $('input', row);
+    const refresh = changed => {
+      const p = provs.find(x => x.id === sel.value);
+      $('datalist', row).innerHTML = p.models.map(m => `<option value="${esc(m)}">`).join('');
+      if (changed) inp.value = p.default_model || '';
+      let note = p.note || '';
+      if (kind === 'image' && p.supports_reference === false) note += ' No reference-image support: character consistency will rely on prompt text.';
+      $('.note', row).innerHTML = esc(note.trim());
+    };
+    sel.addEventListener('change', () => refresh(true)); refresh(false);
+    if (cur.fallback) $('.note', row).innerHTML += ' <span class="warn">Your saved choice lost its key, so a fallback is active.</span>';
+  }
+  const uniq = {};
+  [...s.llm, ...s.image].filter(p => !p.configured && p.id !== 'mock').forEach(p => { uniq[p.label.replace(/ Images$/, '')] = p.env.join(' or '); });
+  $('#unconf').textContent = Object.keys(uniq).length ? 'Not configured on this server: ' + Object.entries(uniq).map(([k, v]) => `${k} (${v})`).join(', ') + '.' : '';
+  $('#dlgSettings').showModal();
+}
+$('#btnProviders').addEventListener('click', openSettings);
+$('#setCancel').addEventListener('click', () => $('#dlgSettings').close());
+$('#setSave').addEventListener('click', async () => {
+  const body = {};
+  $$('#roles .role').forEach(r => { body[r.dataset.role] = { provider: $('select', r).value, model: $('input', r).value.trim() }; });
+  try { state.settings = await api('/api/settings', { method: 'PUT', body: JSON.stringify(body) }); renderProviderPill(); $('#dlgSettings').close(); toast('Providers saved'); }
+  catch (e) { toast(e.message, true); }
+});
+
+/* ---------- sessions ---------- */
+async function loadSessions() { state.sessions = await api('/api/sessions'); renderSessions(); }
+function renderSessions() {
+  $('#sessions').innerHTML = state.sessions.map(s => `<div class="session ${state.current && state.current.id === s.id ? 'active' : ''}" data-id="${s.id}" tabindex="0" role="button">
+      <span class="t">${esc(s.title)}</span><button class="x" data-del="${s.id}" aria-label="Delete ${esc(s.title)}">Delete</button></div>`).join('')
+    || '<p class="muted" style="padding:8px 10px">No books yet.</p>';
+}
+$('#sessions').addEventListener('click', async e => {
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    e.stopPropagation();
+    if (!confirm('Delete this book conversation? Saved library items and images are kept.')) return;
+    await api('/api/sessions/' + del.dataset.del, { method: 'DELETE' });
+    if (state.current && state.current.id === del.dataset.del) state.current = null;
+    await loadSessions();
+    if (!state.current) { state.sessions[0] ? openSession(state.sessions[0].id) : newSession(); }
+    return;
+  }
+  const it = e.target.closest('.session'); if (it) { openSession(it.dataset.id); closeDrawers(); }
+});
+$('#sessions').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('session')) { e.preventDefault(); e.target.click(); } });
+async function newSession() {
+  if (state.current && state.current.messages.length === 0) { $('#input').focus(); closeDrawers(); return; }
+  const s = await api('/api/sessions', { method: 'POST' });
+  await loadSessions(); await openSession(s.id); closeDrawers();
+}
+$('#btnNew').addEventListener('click', newSession);
+async function openSession(id) {
+  state.current = await api('/api/sessions/' + id);
+  renderSessions(); renderMessages(); $('#input').focus();
+}
+
+/* ---------- messages ---------- */
+const lane = $('#lane'), scroller = $('#messages');
+function nearBottom() { return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160; }
+function toBottom(force) { if (force || nearBottom()) scroller.scrollTop = scroller.scrollHeight; }
+
+const STARTERS = [
+  'A shy fox cub who is afraid of the dark, for a 4-year-old. Soft watercolour, warm night colours.',
+  'A counting book about a monsoon evening in the city, for a 3-year-old. Bright gouache, lots of rain puddles.',
+  'A bedtime story where the moon forgets how to rise. Paper-cut collage, deep blues and one yellow.',
+];
+function renderEmpty() {
+  lane.innerHTML = `<div class="empty"><h2>What's the story?</h2>
+    <p>Describe an idea, and I'll propose directions, design the characters, and keep the look consistent across pages. Everything you approve or reject teaches the next book.</p>
+    <div class="starters">${STARTERS.map(t => `<button type="button">${esc(t)}</button>`).join('')}</div></div>`;
+  $$('.starters button', lane).forEach(b => b.addEventListener('click', () => { $('#input').value = b.textContent; $('#input').focus(); autosize(); }));
+}
+function userHtml(m) {
+  const att = (m.image_ids || []).map(i => `<img src="/api/images/${i}" alt="attached ${i}">`).join('');
+  return `<div class="msg user"><div><div class="bubble">${esc(m.text)}</div>${att ? `<div class="att">${att}</div>` : ''}</div></div>`;
+}
+function renderMessages() {
+  const msgs = state.current.messages;
+  if (!msgs.length) { renderEmpty(); return; }
+  lane.innerHTML = '';
+  for (const m of msgs) {
+    if (m.kind === 'user') lane.insertAdjacentHTML('beforeend', userHtml(m));
+    else if (m.kind === 'assistant') { if (m.text) lane.insertAdjacentHTML('beforeend', `<div class="msg assistant">${md(m.text)}</div>`); }
+    else if (m.kind === 'tools') renderToolsMessage(m.calls, lane);
+  }
+  toBottom(true);
+}
+const humanTool = t => String(t).replace(/_/g, ' ');
+function stepEl(tool, args, status, summary) {
+  const d = document.createElement('details'); d.className = 'step ' + status;
+  const shown = Object.keys(args || {}).length ? JSON.stringify(args, null, 2) : '';
+  d.innerHTML = `<summary><span class="dot"></span><span class="lbl"><b>${esc(humanTool(tool))}</b> ${esc(summary || '')}</span></summary>${shown ? `<pre>${esc(shown)}</pre>` : ''}`;
+  return d;
+}
+function printFig(id) {
+  return `<figure class="print" data-id="${id}">
+    <a href="/api/images/${id}" target="_blank" rel="noopener"><img loading="lazy" src="/api/images/${id}" alt="Generated image ${id}"></a>
+    <figcaption><span class="id">${id}</span>
+      <div class="acts"><button type="button" class="keep" data-act="keep">Keep</button><button type="button" class="rej" data-act="reject">Reject</button><button type="button" class="ref" data-act="ref">Use as reference</button></div>
+      <div class="fbform" hidden></div></figcaption></figure>`;
+}
+/* Put images in one grid directly under the step list of the same round. */
+function addPrints(stepsEl, ids) {
+  let grid = stepsEl.nextElementSibling && stepsEl.nextElementSibling.classList.contains('prints') ? stepsEl.nextElementSibling : null;
+  if (!grid) { grid = document.createElement('div'); grid.className = 'prints'; stepsEl.after(grid); }
+  grid.insertAdjacentHTML('beforeend', ids.map(printFig).join(''));
+}
+function newSteps(parent, before) {
+  const d = document.createElement('div'); d.className = 'steps';
+  before ? parent.insertBefore(d, before) : parent.appendChild(d); return d;
+}
+function renderToolsMessage(calls, parent) {
+  const steps = newSteps(parent);
+  calls.forEach(c => steps.appendChild(stepEl(c.tool, c.args, c.ok ? 'ok' : 'fail', c.summary)));
+  const ids = calls.flatMap(c => c.images || []);
+  if (ids.length) addPrints(steps, ids);
+}
+
+/* feedback on prints */
+const KEEP_TAGS = ['love palette', 'love character', 'love style', 'love composition', 'great lighting'];
+const REJECT_TAGS = ['too dark', 'too scary', 'off-model', 'palette off', 'text in image', 'bad hands', 'cluttered', 'wrong style', 'boring composition'];
+lane.addEventListener('click', async e => {
+  const chip = e.target.closest('.chip');
+  if (chip) { chip.setAttribute('aria-pressed', chip.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); return; }
+  const b = e.target.closest('button[data-act]');
+  if (b) {
+    const fig = b.closest('.print'), id = fig.dataset.id, act = b.dataset.act;
+    if (act === 'ref') { addPending(id); toast('Attached as reference. Mention it in your next message.'); return; }
+    const form = $('.fbform', fig), tags = act === 'keep' ? KEEP_TAGS : REJECT_TAGS;
+    form.hidden = false; form.dataset.verdict = act === 'keep' ? 'approved' : 'rejected';
+    form.innerHTML = `<div class="chips">${tags.map(t => `<button type="button" class="chip" aria-pressed="false">${t}</button>`).join('')}</div>
+      <input placeholder="Why? (optional)" aria-label="Reason"><div class="acts"><button type="button" class="save">Save ${act === 'keep' ? 'keep' : 'rejection'}</button><button type="button" class="cancel">Cancel</button></div>`;
+    return;
+  }
+  const form = e.target.closest('.fbform'); if (!form) return;
+  if (e.target.classList.contains('cancel')) { form.hidden = true; form.innerHTML = ''; return; }
+  if (e.target.classList.contains('save')) {
+    const id = form.closest('.print').dataset.id;
+    const tags = $$('.chip[aria-pressed=true]', form).map(c => c.textContent);
+    try {
+      await api('/api/feedback', { method: 'POST', body: JSON.stringify({ image_id: id, verdict: form.dataset.verdict, tags, note: $('input', form).value, session_id: state.current && state.current.id }) });
+      form.innerHTML = '<span class="muted">Saved. The studio will use this next time.</span>'; loadFeedback();
+    } catch (err) { toast(err.message, true); }
+  }
+});
+
+/* ---------- composer ---------- */
+const input = $('#input');
+function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 200) + 'px'; }
+input.addEventListener('input', autosize);
+input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#composer').requestSubmit(); } });
+$('#btnAttach').addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', async e => {
+  for (const f of e.target.files) {
+    const fd = new FormData(); fd.append('file', f);
+    try { const r = await api('/api/upload', { method: 'POST', body: fd }); addPending(r.id); } catch (err) { toast(err.message, true); }
+  }
+  e.target.value = '';
+});
+function addPending(id) { if (!state.pending.includes(id)) state.pending.push(id); renderPending(); }
+function renderPending() {
+  $('#pending').innerHTML = state.pending.map(id => `<div class="p"><img src="/api/images/${id}" alt="${id}"><button type="button" data-rm="${id}" aria-label="Remove ${id}">x</button></div>`).join('');
+}
+$('#pending').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (b) { state.pending = state.pending.filter(i => i !== b.dataset.rm); renderPending(); } });
+function setBusy(b) { state.busy = b; $('#btnSend').disabled = b; $('#btnSend').textContent = b ? 'Working…' : 'Send'; }
+
+$('#composer').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = input.value.trim(); if (!text || state.busy) return;
+  if (!state.current) await newSession();
+  const sid = state.current.id, ids = [...state.pending];
+  if (!state.current.messages.length) lane.innerHTML = '';
+  state.current.messages.push({ kind: 'user', text, image_ids: ids });
+  lane.insertAdjacentHTML('beforeend', userHtml({ text, image_ids: ids }));
+  input.value = ''; autosize(); state.pending = []; renderPending(); setBusy(true); toBottom(true);
+  const working = document.createElement('div'); working.className = 'working'; working.innerHTML = '<i></i><span>Thinking…</span>';
+  lane.appendChild(working);
+  let running = null, curSteps = null;
+  const place = el => { lane.insertBefore(el, working); };
+  const setWorking = t => { $('span', working).textContent = t; };
+  const handle = ev => {
+    if (ev.type === 'text') { curSteps = null; const d = document.createElement('div'); d.className = 'msg assistant'; d.innerHTML = md(ev.text); place(d); setWorking('Thinking…'); }
+    else if (ev.type === 'title') { const s = state.sessions.find(x => x.id === sid); if (s) { s.title = ev.title; renderSessions(); } }
+    else if (ev.type === 'tool_call') {
+      running = stepEl(ev.tool, ev.args, 'running', 'running…');
+      if (!curSteps) curSteps = newSteps(lane, working);
+      curSteps.appendChild(running); setWorking(humanTool(ev.tool) + '…');
+    }
+    else if (ev.type === 'tool_result') {
+      if (running) { running.className = 'step ' + (ev.ok ? 'ok' : 'fail'); $('.lbl', running).innerHTML = `<b>${esc(humanTool(ev.tool))}</b> ${esc(ev.summary || '')}`; }
+      if (ev.images && ev.images.length && curSteps) addPrints(curSteps, ev.images);
+      running = null;
+    }
+    else if (ev.type === 'error') { const d = document.createElement('div'); d.className = 'msg error'; d.textContent = ev.message; place(d); }
+    toBottom();
+  };
+  try {
+    const res = await fetch(`/api/sessions/${sid}/chat`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, image_ids: ids, explore: $('#explore').checked }) });
+    if (res.status === 401) { showLogin(); throw new Error('Sign in required'); }
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '';
+    while (true) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true }); let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) { const chunk = buf.slice(0, i); buf = buf.slice(i + 2); if (chunk.startsWith('data: ')) handle(JSON.parse(chunk.slice(6))); }
+    }
+  } catch (err) {
+    const d = document.createElement('div'); d.className = 'msg error'; d.textContent = err.message; place(d);
+  } finally {
+    working.remove(); setBusy(false);
+    state.current = await api('/api/sessions/' + sid).catch(() => state.current);
+    loadSessions(); loadLibrary(); loadTaste(); loadFeedback(); input.focus();
+  }
+});
+
+/* ---------- side panel ---------- */
+$$('.tabs button').forEach(b => b.addEventListener('click', () => {
+  $$('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  ['library', 'taste', 'feedback'].forEach(t => { $('#pane-' + t).hidden = t !== b.dataset.tab; });
+}));
+const TYPE_LABEL = { character: 'Characters', style: 'Styles', palette: 'Palettes', book: 'Books' };
+async function loadLibrary() { state.library = await api('/api/library'); renderLibrary(); }
+function renderLibrary() {
+  $('#filters').innerHTML = ['all', 'character', 'style', 'palette', 'book'].map(t => `<button type="button" class="chip" data-f="${t}" aria-pressed="${state.filter === t}">${t === 'all' ? 'All' : TYPE_LABEL[t]}</button>`).join('');
+  const items = state.library.filter(a => state.filter === 'all' || a.type === state.filter);
+  $('#libList').innerHTML = items.map(a => `<button type="button" class="item" data-type="${a.type}" data-slug="${a.slug}">
+      ${a.image_ids[0] ? `<img class="th" loading="lazy" src="/api/images/${a.image_ids[0]}" alt="">` : `<div class="th none">${esc(a.name[0] || '?')}</div>`}
+      <div><div class="ty">${a.type}</div><div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.description)}</div></div></button>`).join('')
+    || '<p class="muted">Nothing saved yet. Characters, styles, palettes and books you approve in chat land here and get reused in later books.</p>';
+}
+$('#filters').addEventListener('click', e => { const c = e.target.closest('[data-f]'); if (c) { state.filter = c.dataset.f; renderLibrary(); } });
+$('#libList').addEventListener('click', async e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  const a = await api(`/api/library/${it.dataset.type}/${it.dataset.slug}`);
+  $('#assetBody').innerHTML = `<h2>${esc(a.name)}</h2><p class="sub">${esc(a.type)}, version ${a.version}. ${esc(a.description)}</p>
+    ${a.tags.length ? `<div class="chips">${a.tags.map(t => `<span class="chip" style="cursor:default">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${a.image_ids.length ? `<div class="detail-imgs">${a.image_ids.map(i => `<a href="/api/images/${i}" target="_blank" rel="noopener"><img src="/api/images/${i}" alt="${i}"></a>`).join('')}</div>` : ''}
+    <pre>${esc(JSON.stringify(a.data, null, 2))}</pre>
+    <div class="foot"><button type="button" class="btn danger" id="aDel">Delete</button>
+      ${a.type === 'book' ? `<a class="btn" style="text-decoration:none" href="/api/books/${a.slug}/export">Export ZIP</a>` : ''}
+      <button type="button" class="btn" id="aReuse">Reuse in chat</button><button type="button" class="btn primary" id="aClose">Close</button></div>`;
+  const dlg = $('#dlgAsset'); dlg.showModal();
+  $('#aClose').onclick = () => dlg.close();
+  $('#aReuse').onclick = () => {
+    const verb = { character: 'Reuse my character', style: 'Use my style', palette: 'Use my palette', book: 'Make a sequel to my book' }[a.type];
+    input.value = `${verb} "${a.name}" for a new story: `; autosize(); dlg.close(); closeDrawers(); input.focus();
+  };
+  $('#aDel').onclick = async () => { if (!confirm(`Delete "${a.name}" from the library?`)) return; await api(`/api/library/${a.type}/${a.slug}`, { method: 'DELETE' }); dlg.close(); loadLibrary(); toast('Deleted'); };
+});
+async function loadTaste() {
+  const t = await api('/api/taste'); const ta = $('#tasteText');
+  if (document.activeElement !== ta) ta.value = t.markdown;
+  state.tasteMax = t.max; countTaste();
+}
+function countTaste() { $('#tasteCount').textContent = `${$('#tasteText').value.length} / ${state.tasteMax} characters`; }
+$('#tasteText').addEventListener('input', countTaste);
+$('#btnTaste').addEventListener('click', async () => {
+  try { await api('/api/taste', { method: 'PUT', body: JSON.stringify({ markdown: $('#tasteText').value }) }); toast('Taste saved'); }
+  catch (e) { toast(e.message, true); }
+});
+async function loadFeedback() {
+  const rows = await api('/api/feedback');
+  $('#fbList').innerHTML = rows.map(r => `<div class="fbrow"><b class="${r.verdict === 'approved' ? 'ok' : r.verdict === 'rejected' ? 'no' : ''}">${esc(r.verdict)}</b> ${esc((r.tags || []).join(', '))}${r.note ? ` <span class="muted">${esc(r.note)}</span>` : ''}${r.image_id ? ` <code>${esc(r.image_id)}</code>` : ''}</div>`).join('')
+    || '<p class="muted">No feedback yet. Use Keep and Reject under any image, or just tell the studio what you think.</p>';
+}
+
+/* ---------- drawers (small screens) ---------- */
+function closeDrawers() { $('#rail').classList.remove('open'); $('#panel').classList.remove('open'); }
+$('#btnRail').addEventListener('click', () => { $('#panel').classList.remove('open'); $('#rail').classList.toggle('open'); });
+$('#btnPanel').addEventListener('click', () => { $('#rail').classList.remove('open'); $('#panel').classList.toggle('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawers(); });
+
+boot().catch(e => toast(e.message, true));
+</script>
+</body>
+</html>

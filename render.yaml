@@ -1,0 +1,24 @@
+# Render blueprint. Persistent disks need a paid instance type.
+services:
+  - type: web
+    name: storybook-studio
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: studio-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: STUDIO_PASSWORD
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: STABILITY_API_KEY
+        sync: false
